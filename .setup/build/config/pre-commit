@@ -1,0 +1,49 @@
+#!/bin/bash
+
+set -e
+
+echo "Running pre-commit checks for GoWatch..."
+
+# Tidy go modules
+echo "Tidying go modules..."
+go mod tidy
+if ! git diff --quiet go.mod go.sum; then
+    echo "go.mod or go.sum changed. Please commit the changes."
+    exit 1
+fi
+
+# Format code and check if formatted
+echo "Checking code formatting..."
+go fmt ./...
+if ! git diff --quiet; then
+    echo "Code is not properly formatted. Please run 'go fmt ./...' and commit the changes."
+    exit 1
+fi
+
+# Run go vet
+echo "Running go vet..."
+go vet ./...
+
+# Run tests
+echo "Running unit tests..."
+make test
+
+# Run gosec
+echo "Running security checks with gosec..."
+make go-sec
+
+# Check field alignment
+echo "Checking field alignment..."
+if command -v fieldalignment >/dev/null 2>&1; then
+    fieldalignment ./... > /tmp/fieldalignment_check.out 2>&1
+    if [ -s /tmp/fieldalignment_check.out ]; then
+        echo "Field alignment issues found:"
+        cat /tmp/fieldalignment_check.out
+        echo "Please fix field alignment issues."
+        exit 1
+    fi
+else
+    echo "fieldalignment not installed, skipping field alignment check."
+fi
+
+echo "All checks passed!"

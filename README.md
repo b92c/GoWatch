@@ -20,4 +20,5 @@ To install GoWatch, ensure you have Go 1.25.3 or later installed. Clone the repo
 ```bash
 git clone https://github.com/b92c/GoWatch.git
 cd GoWatch
-go build ./cmd/obs
+make install
+make run
