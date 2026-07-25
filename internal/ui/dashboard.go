@@ -7,6 +7,7 @@ import (
 
 	"github.com/b92c/gowatch/internal/docker"
 	"github.com/b92c/gowatch/internal/filter"
+	"github.com/b92c/gowatch/pkg/metrics"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
@@ -148,8 +149,13 @@ func (d *Dashboard) updateServicesTable(containers docker.Containers) {
 			stateColor = tcell.ColorRed
 		}
 
+		cpuSpark := tview.Escape(RenderSparkline(c.CPUHistory, 10))
+		memSpark := tview.Escape(RenderSparkline(c.MemHistory, 10))
+
 		memMB := fmt.Sprintf("%.2f MB", float64(c.MemUsage)/1024/1024)
-		cpuStr := fmt.Sprintf("%.2f", c.CPUPercent)
+		cpuStr := fmt.Sprintf("%s %.2f%%", cpuSpark, c.CPUPercent)
+		memStr := fmt.Sprintf("%s %s", memSpark, memMB)
+
 		netBytes := fmt.Sprintf("%s/%s", formatBytes(c.NetRxBytes), formatBytes(c.NetTxBytes))
 		netPackets := fmt.Sprintf("%d/%d", c.NetRxPackets, c.NetTxPackets)
 		diskBytes := fmt.Sprintf("%s/%s", formatBytes(c.DiskReadBytes), formatBytes(c.DiskWriteBytes))
@@ -170,7 +176,7 @@ func (d *Dashboard) updateServicesTable(containers docker.Containers) {
 			{c.State, stateColor},
 			{c.Image, tcell.ColorLightBlue},
 			{cpuStr, tcell.ColorWhite},
-			{memMB, tcell.ColorWhite},
+			{memStr, tcell.ColorWhite},
 			{netBytes, tcell.ColorWhite},
 			{netPackets, tcell.ColorWhite},
 			{diskBytes, tcell.ColorWhite},
@@ -204,7 +210,7 @@ func formatBytes(value uint64) string {
 	return fmt.Sprintf("%.1f GB", bytes/(unit*unit*unit))
 }
 
-func (d *Dashboard) updateResourcesView(host docker.HostInfo) {
+func (d *Dashboard) updateResourcesView(host metrics.HostInfo) {
 	d.resourcesView.Clear()
 	fmt.Fprintf(d.resourcesView, "[yellow]CPU Cores:[-] %d\n\n", host.CPUCount)
 	fmt.Fprintf(d.resourcesView, "[yellow]Memory Total:[-] %.2f GB\n", float64(host.MemTotal)/1024/1024/1024)

@@ -4,11 +4,12 @@ import (
 	"io"
 	"strings"
 
+	"github.com/b92c/gowatch/pkg/metrics"
 	"github.com/moby/moby/api/types/container"
 )
 
-func ParseStats(statsJSON container.StatsResponse) ContainerStats {
-	parsed := ContainerStats{
+func ParseStats(statsJSON container.StatsResponse) metrics.ContainerStats {
+	parsed := metrics.ContainerStats{
 		MemUsage:       statsJSON.MemoryStats.Usage,
 		PIDsCurrent:    statsJSON.PidsStats.Current,
 		OOMEvents:      statsJSON.MemoryStats.Failcnt,

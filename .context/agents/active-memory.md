@@ -1,77 +1,44 @@
 # Active Memory - GoWatch Session
 
-**Data**: 2026-04-18  
-**Status**: Sessao atualizada - pronta para continuar nas proximas features
+**Data**: 2026-04-21  
+**Status**: P1.3 entregue - Histórico e Sparklines funcionando
 
 ---
 
 ## O que foi entregue
 
-### P1.1 - Advanced Container Filtering & Search
-- `internal/filter/filter.go` criado com `FilterState` e filtros por texto/status/label.
-- `internal/ui/dashboard.go` ganhou `searchField`, `helpBar`, `filterState` e fluxo de busca com `/`, `f`, `Enter` e `Esc`.
-- O `Update()` agora aplica `FilterContainers(...)` antes de renderizar.
+### P1.3 - Historical Data & Trending
+- `pkg/metrics/types.go` centraliza `ContainerStats`, `MetricPoint` e `HostInfo`.
+- `internal/docker/collector.go` agora usa `historyStore` (map + mutex) para manter até 60 pontos de CPU/Memória.
+- `internal/ui/components.go` ganhou `RenderSparkline` usando blocos Unicode.
+- `internal/ui/dashboard.go` exibe mini-gráficos nas colunas de CPU e Memória.
+- Adicionadas funções `GetStatsSummary` e `FormatStatsSummary` para análises futuras.
+- Testes unitários implementados em `pkg/metrics/metrics_test.go`.
 
-### P1.2 - Extended Metrics Collection
-- `internal/docker/parser.go` agora extrai:
-  - Network: bytes e pacotes Rx/Tx
-  - Disk: bytes e ops de leitura/escrita
-  - PIDs atuais
-  - Indicador de OOM
-- `internal/docker/collector.go` passou a propagar os novos campos em `ContainerStats` e `Container`.
-- A TUI exibiu novas colunas para essas métricas.
-- Testes de parsing foram adicionados em `internal/docker/parser_test.go`.
-
-### Layout da TUI
-- O grid foi refatorado para **uma coluna vertical**:
-  1. Docker Services
-  2. System Resources
-  3. Search/Filter
-  4. Logs
-  5. Help bar
-- Isso resolveu o problema de colunas comprimidas e deixou mais largura útil para os dados.
+### P1.1 e P1.2 (Anteriores)
+- Filtros avançados, busca e métricas estendidas (Net, Disk, PIDs) consolidados.
+- Layout vertical da TUI estabilizado.
 
 ---
 
 ## Validacoes executadas
 - `make build` OK
-- `make test` OK
-- `make go-sec` OK
-- Smoke test com `./bin/gowatch` confirmou o layout vertical da TUI.
+- `make test` OK (16.6% de cobertura total, >90% nos parsers e metrics helpers)
+- Verificado que o histórico persiste entre os ciclos de atualização da UI.
 
 ---
 
 ## Estado atual
-- Todos os todos criados para P1.1, P1.2 e refactor de layout estao concluídos.
-- A UI está estável com busca/filtro, métricas estendidas e layout vertical mais legível.
-
----
-
-## Proximos passos recomendados
-
-1. **P1.3 - Historical Data & Trending**
-   - armazenar histórico de métricas
-   - exibir tendência/mini gráficos
-   - preparar base para análise temporal
-
-2. **P1.4 - Log Management Enhancements**
-   - filtro por container/keyword
-   - parser de log level
-   - exportação e retenção de logs
-
-3. **Depois da Fase 1**
-   - **P2.1** configuração em arquivo
-   - **P2.2** temas/customização
-   - **P2.3** atalhos e ajuda dinâmica
+- O projeto agora possui uma base sólida para análise temporal.
+- Próximo passo recomendado: P1.4 Log Management Enhancements.
 
 ---
 
 ## Notas tecnicas importantes
-- `tview.Grid` fica mais previsível com uma coluna única e blocos verticais.
-- Manter `logsView` flexível ajuda na leitura de grandes volumes de logs.
-- Métricas ausentes devem continuar exibindo zero explicitamente, sem fallback silencioso.
+- O uso de `pkg/metrics` desacoplou a UI e o Collector de definições internas do Docker.
+- `MaxHistoryPoints = 60` balanceia bem visibilidade (~2min) e consumo de memória.
 
 ---
 
-**Encerrado em**: 2026-04-18  
-**Retomar por**: iniciar P1.3 (historico/trending)
+**Encerrado em**: 2026-04-21  
+**Retomar por**: Iniciar P1.4 (Filtro de logs e parser de levels).

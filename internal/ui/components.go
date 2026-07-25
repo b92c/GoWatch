@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/b92c/gowatch/pkg/metrics"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
@@ -34,4 +35,48 @@ func NewStatusBar() *tview.TextView {
 		SetTextAlign(tview.AlignCenter)
 	view.SetBackgroundColor(tcell.ColorDarkBlue)
 	return view
+}
+
+// RenderSparkline creates a small text-based chart using unicode block characters
+func RenderSparkline(values []metrics.MetricPoint, maxPoints int) string {
+	if len(values) == 0 {
+		return ""
+	}
+
+	// Unicode block characters: 0:  , 1: ▂, 2: ▃, 3: ▄, 4: ▅, 5: ▆, 6: ▇, 7: █
+	blocks := []rune{' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+
+	maxVal := 0.00001
+	for _, v := range values {
+		if v.Value > maxVal {
+			maxVal = v.Value
+		}
+	}
+
+	result := ""
+	for _, v := range values {
+		idx := int((v.Value / maxVal) * float64(len(blocks)-1))
+		if idx < 0 {
+			idx = 0
+		}
+		if idx >= len(blocks) {
+			idx = len(blocks) - 1
+		}
+		result += string(blocks[idx])
+	}
+
+	// Pad to ensure consistent width
+	if len(result) < maxPoints {
+		padding := ""
+		for i := 0; i < maxPoints-len(result); i++ {
+			padding += " "
+		}
+		result = padding + result
+	}
+
+	return result
+}
+
+func FormatStatsSummary(values []metrics.MetricPoint, unit string) string {
+	return metrics.FormatStatsSummary(values, unit)
 }

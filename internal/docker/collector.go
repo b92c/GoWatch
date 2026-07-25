@@ -6,31 +6,12 @@ import (
 	"encoding/json"
 	"runtime"
 	"sync"
+	"time"
 
+	"github.com/b92c/gowatch/pkg/metrics"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 )
-
-type HostInfo struct {
-	CPUCount int
-	MemTotal uint64
-	MemFree  uint64
-}
-
-type ContainerStats struct {
-	CPUPercent     float64
-	MemUsage       uint64
-	NetRxBytes     uint64
-	NetTxBytes     uint64
-	NetRxPackets   uint64
-	NetTxPackets   uint64
-	DiskReadBytes  uint64
-	DiskWriteBytes uint64
-	DiskReadOps    uint64
-	DiskWriteOps   uint64
-	PIDsCurrent    uint64
-	OOMEvents      uint64
-}
 
 type ContainerLog struct {
 	ID   string
@@ -44,30 +25,66 @@ type FormattedLog struct {
 
 var (
 	previousStats = make(map[string]container.StatsResponse)
+	historyStore  = make(map[string]metrics.ContainerStats)
 	statsMutex    sync.RWMutex
 )
 
-func getContainerStats(ctx context.Context, apiClient *client.Client, containerID string) ContainerStats {
+func getContainerStats(ctx context.Context, apiClient *client.Client, containerID string) metrics.ContainerStats {
 	stats, err := apiClient.ContainerStats(ctx, containerID, client.ContainerStatsOptions{Stream: false})
 	if err != nil {
-		return ContainerStats{}
+		return metrics.ContainerStats{}
 	}
 	defer stats.Body.Close()
 
 	var statsJSON container.StatsResponse
 	if err := json.NewDecoder(stats.Body).Decode(&statsJSON); err != nil {
-		return ContainerStats{}
+		return metrics.ContainerStats{}
 	}
 
 	statsMutex.Lock()
+	defer statsMutex.Unlock()
+
 	prevStats, exists := previousStats[containerID]
 	if exists {
 		statsJSON.PreCPUStats = prevStats.CPUStats
 	}
 	previousStats[containerID] = statsJSON
-	statsMutex.Unlock()
 
-	return ParseStats(statsJSON)
+	stat := ParseStats(statsJSON)
+
+	// Update history
+	h, exists := historyStore[containerID]
+	if !exists {
+		h = metrics.ContainerStats{}
+	}
+
+	now := time.Now()
+	h.CPUPercent = stat.CPUPercent
+	h.MemUsage = stat.MemUsage
+	h.NetRxBytes = stat.NetRxBytes
+	h.NetTxBytes = stat.NetTxBytes
+	h.NetRxPackets = stat.NetRxPackets
+	h.NetTxPackets = stat.NetTxPackets
+	h.DiskReadBytes = stat.DiskReadBytes
+	h.DiskWriteBytes = stat.DiskWriteBytes
+	h.DiskReadOps = stat.DiskReadOps
+	h.DiskWriteOps = stat.DiskWriteOps
+	h.PIDsCurrent = stat.PIDsCurrent
+	h.OOMEvents = stat.OOMEvents
+
+	h.CPUHistory = append(h.CPUHistory, metrics.MetricPoint{Timestamp: now, Value: stat.CPUPercent})
+	h.MemHistory = append(h.MemHistory, metrics.MetricPoint{Timestamp: now, Value: float64(stat.MemUsage)})
+
+	// Limit history
+	if len(h.CPUHistory) > metrics.MaxHistoryPoints {
+		h.CPUHistory = h.CPUHistory[1:]
+	}
+	if len(h.MemHistory) > metrics.MaxHistoryPoints {
+		h.MemHistory = h.MemHistory[1:]
+	}
+
+	historyStore[containerID] = h
+	return h
 }
 
 func getContainerLogs(ctx context.Context, apiClient *client.Client, containerID string) []string {
@@ -84,11 +101,11 @@ func getContainerLogs(ctx context.Context, apiClient *client.Client, containerID
 	return ParseLogs(logs)
 }
 
-func getHostInfo() HostInfo {
+func getHostInfo() metrics.HostInfo {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 
-	return HostInfo{
+	return metrics.HostInfo{
 		CPUCount: runtime.NumCPU(),
 		MemTotal: memStats.Sys,
 		MemFree:  memStats.Frees,
@@ -99,7 +116,7 @@ type Containers struct {
 	C        []Container
 	Logs     []ContainerLog
 	FlatLogs []FormattedLog
-	Host     HostInfo
+	Host     metrics.HostInfo
 }
 
 type Container struct {
@@ -127,6 +144,8 @@ type Container struct {
 	PIDsCurrent    uint64
 	OOMEvents      uint64
 	CreatedAt      int64
+	CPUHistory     []metrics.MetricPoint
+	MemHistory     []metrics.MetricPoint
 }
 
 func WatchContainers(ctx context.Context, apiClient *client.Client) (Containers, error) {
@@ -158,6 +177,8 @@ func WatchContainers(ctx context.Context, apiClient *client.Client) (Containers,
 			DiskWriteOps:   stat.DiskWriteOps,
 			PIDsCurrent:    stat.PIDsCurrent,
 			OOMEvents:      stat.OOMEvents,
+			CPUHistory:     stat.CPUHistory,
+			MemHistory:     stat.MemHistory,
 			Log:            logs,
 		})
 	}
