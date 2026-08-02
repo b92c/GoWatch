@@ -120,20 +120,20 @@ type Containers struct {
 }
 
 type Container struct {
-	Service        string
+	WorkingDir     string
 	SOVersion      string
 	Status         string
 	State          string
 	Command        string
 	DependsOn      string
-	WorkingDir     string
 	ID             string
 	Image          string
 	ConfigFile     string
+	Service        string
+	CPUHistory     []metrics.MetricPoint
 	Log            []string
-	MemUsage       uint64
+	MemHistory     []metrics.MetricPoint
 	CPUPercent     float64
-	NetRxBytes     uint64
 	NetTxBytes     uint64
 	NetRxPackets   uint64
 	NetTxPackets   uint64
@@ -144,8 +144,8 @@ type Container struct {
 	PIDsCurrent    uint64
 	OOMEvents      uint64
 	CreatedAt      int64
-	CPUHistory     []metrics.MetricPoint
-	MemHistory     []metrics.MetricPoint
+	NetRxBytes     uint64
+	MemUsage       uint64
 }
 
 func WatchContainers(ctx context.Context, apiClient *client.Client) (Containers, error) {

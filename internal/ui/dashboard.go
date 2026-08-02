@@ -13,13 +13,16 @@ import (
 )
 
 type Dashboard struct {
-	app           *tview.Application
-	servicesTable *tview.Table
+	daemonError   error
+	searchField   *tview.InputField
 	logsView      *tview.TextView
 	resourcesView *tview.TextView
 	helpBar       *tview.TextView
 	grid          *tview.Grid
-	searchField   *tview.InputField
+	app           *tview.Application
+	servicesTable *tview.Table
+	daemonErrView *tview.TextView
+	pages         *tview.Pages
 	filterState   filter.FilterState
 	userScrolling bool
 	firstRender   bool
@@ -57,6 +60,19 @@ func NewDashboard() *Dashboard {
 		SetFieldWidth(0)
 	searchField.SetBorder(true).SetTitle(" Filter ")
 
+	daemonErrView := tview.NewTextView().
+		SetDynamicColors(true).
+		SetTextAlign(tview.AlignLeft)
+	daemonErrView.SetBorder(true).
+		SetTitle(" ⚠ Docker Daemon Offline ").
+		SetTitleAlign(tview.AlignCenter).
+		SetBorderColor(tcell.ColorRed)
+
+	errorHelpBar := tview.NewTextView().
+		SetDynamicColors(true).
+		SetText("[q][yellow] Quit[white] | [gray]Waiting for Docker daemon...[-]")
+	errorHelpBar.SetBorder(false).SetBackgroundColor(tcell.ColorBlack)
+
 	grid := tview.NewGrid().
 		SetRows(0, 0, 3, 0, 1).
 		SetColumns(0).
@@ -66,7 +82,17 @@ func NewDashboard() *Dashboard {
 		AddItem(logsView, 3, 0, 1, 1, 0, 0, true).
 		AddItem(helpBar, 4, 0, 1, 1, 0, 0, false)
 
-	app.SetRoot(grid, true)
+	errorGrid := tview.NewGrid().
+		SetRows(0, 1).
+		SetColumns(0).
+		AddItem(daemonErrView, 0, 0, 1, 1, 0, 0, false).
+		AddItem(errorHelpBar, 1, 0, 1, 1, 0, 0, false)
+
+	pages := tview.NewPages().
+		AddPage("dashboard", grid, true, true).
+		AddPage("error", errorGrid, true, false)
+
+	app.SetRoot(pages, true)
 	app.EnableMouse(true)
 	app.SetFocus(logsView)
 
@@ -77,6 +103,8 @@ func NewDashboard() *Dashboard {
 		resourcesView: resourcesView,
 		helpBar:       helpBar,
 		grid:          grid,
+		pages:         pages,
+		daemonErrView: daemonErrView,
 		searchField:   searchField,
 		filterState:   filter.NewFilterState(),
 		userScrolling: false,
@@ -272,11 +300,12 @@ func (d *Dashboard) Stop() {
 func (d *Dashboard) handleInput(event *tcell.EventKey) *tcell.EventKey {
 	if event.Key() == tcell.KeyRune {
 		switch event.Rune() {
-		case '/':
-			d.app.SetFocus(d.searchField)
-			d.filterMode = true
-			return nil
-		case 'f':
+		case 'q':
+			if !d.filterMode {
+				d.app.Stop()
+				return nil
+			}
+		default:
 			d.app.SetFocus(d.searchField)
 			d.filterMode = true
 			return nil
@@ -293,4 +322,40 @@ func (d *Dashboard) handleInput(event *tcell.EventKey) *tcell.EventKey {
 		d.filterState.Clear()
 	}
 	return event
+}
+
+func (d *Dashboard) ShowDaemonError(err error) {
+	d.app.QueueUpdateDraw(func() {
+		d.daemonError = err
+		d.daemonErrView.Clear()
+		fmt.Fprintf(d.daemonErrView,
+			"\n\n\n"+
+				"    [red]██████╗  █████╗ ███████╗███╗   ███╗ ██████╗ ███╗   ██╗[-]\n"+
+				"    [red]██╔══██╗██╔══██╗██╔════╝████╗ ████║██╔═══██╗████╗  ██║[-]\n"+
+				"    [red]██║  ██║███████║█████╗  ██╔████╔██║██║   ██║██╔██╗ ██║[-]\n"+
+				"    [red]██║  ██║██╔══██║██╔══╝  ██║╚██╔╝██║██║   ██║██║╚██╗██║[-]\n"+
+				"    [red]██████╔╝██║  ██║███████╗██║ ╚═╝ ██║╚██████╔╝██║ ╚████║[-]\n"+
+				"    [red]╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═══╝[-]\n\n"+
+				"    [red::b]⚠  Docker Daemon is not running[-]\n\n"+
+				"    [white]GoWatch requires the Docker daemon to monitor containers.[-]\n"+
+				"    [white]Please start Docker and GoWatch will reconnect automatically.[-]\n\n"+
+				"    [gray]How to start Docker:[-]\n"+
+				"    [yellow]  • macOS:[white]  Open Docker Desktop application[-]\n"+
+				"    [yellow]  • Linux:[white]  sudo systemctl start docker[-]\n\n"+
+				"    [gray]Error: %s[-]\n\n"+
+				"    [darkgray]Retrying connection every 2 seconds...[-]",
+			err.Error(),
+		)
+		d.pages.SwitchToPage("error")
+	})
+}
+
+func (d *Dashboard) ClearDaemonError() {
+	d.app.QueueUpdateDraw(func() {
+		if d.daemonError == nil {
+			return
+		}
+		d.daemonError = nil
+		d.pages.SwitchToPage("dashboard")
+	})
 }

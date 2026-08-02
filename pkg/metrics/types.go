@@ -14,22 +14,20 @@ type MetricPoint struct {
 }
 
 type ContainerStats struct {
-	CPUPercent     float64
-	MemUsage       uint64
-	NetRxBytes     uint64
+	CPUHistory     []MetricPoint
+	MemHistory     []MetricPoint
+	DiskReadBytes  uint64
 	NetTxBytes     uint64
 	NetRxPackets   uint64
 	NetTxPackets   uint64
-	DiskReadBytes  uint64
+	CPUPercent     float64
 	DiskWriteBytes uint64
 	DiskReadOps    uint64
 	DiskWriteOps   uint64
 	PIDsCurrent    uint64
 	OOMEvents      uint64
-
-	// History
-	CPUHistory []MetricPoint
-	MemHistory []MetricPoint
+	NetRxBytes     uint64
+	MemUsage       uint64
 }
 
 type HostInfo struct {

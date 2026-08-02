@@ -24,14 +24,22 @@ func main() {
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 
+		containers, err := docker.WatchContainers(ctx, apiClient)
+		if err != nil {
+			dashboard.ShowDaemonError(err)
+		} else {
+			dashboard.Update(containers)
+		}
+
 		for {
 			select {
 			case <-ticker.C:
 				containers, err := docker.WatchContainers(ctx, apiClient)
 				if err != nil {
-					log.Printf("Error watching containers: %v", err)
+					dashboard.ShowDaemonError(err)
 					continue
 				}
+				dashboard.ClearDaemonError()
 				dashboard.Update(containers)
 			case <-ctx.Done():
 				return
