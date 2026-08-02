@@ -60,7 +60,7 @@ GoWatch provides a real-time terminal dashboard with three main sections:
 
 ### Dashboard Example
 
-![GoWatch Dashboard](.assets/dashboard-example.png)
+![GoWatch Dashboard](.assets/gowatch-dash.gif)
 
 The interactive dashboard updates every 2 seconds, providing live visibility into your containerized services.
 

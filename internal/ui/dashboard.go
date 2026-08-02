@@ -129,7 +129,7 @@ func NewDashboard() *Dashboard {
 func (d *Dashboard) Update(containers docker.Containers) {
 	filtered := filter.FilterContainers(containers, d.filterState)
 	d.updateServicesTable(filtered)
-	d.updateResourcesView(filtered.Host)
+	d.updateResourcesView(filtered.Host, filtered.C)
 	d.updateLogsView(filtered)
 }
 
@@ -156,13 +156,16 @@ func (d *Dashboard) updateServicesTable(containers docker.Containers) {
 	d.servicesTable.Clear()
 
 	// Headers
-	headers := []string{"Service", "State", "Image", "CPU %", "Memory", "Net Bytes (Rx/Tx)", "Net Pkts (Rx/Tx)", "Disk Bytes (R/W)", "Disk Ops (R/W)", "PIDs", "OOM", "Logs"}
+	headers := []string{"Service", "State", "Image", "CPU %", "Memory", "Net Rx/Tx", "Net Pkts", "Disk R/W", "Disk Ops", "PIDs", "OOM", "Logs"}
 	for i, header := range headers {
-		d.servicesTable.SetCell(0, i,
-			tview.NewTableCell(header).
-				SetTextColor(tcell.ColorYellow).
-				SetAlign(tview.AlignCenter).
-				SetSelectable(false))
+		cell := tview.NewTableCell(header).
+			SetTextColor(tcell.ColorYellow).
+			SetAlign(tview.AlignCenter).
+			SetSelectable(false)
+		if i == 2 { // Image column
+			cell.SetMaxWidth(25)
+		}
+		d.servicesTable.SetCell(0, i, cell)
 	}
 
 	// Data rows
@@ -215,10 +218,13 @@ func (d *Dashboard) updateServicesTable(containers docker.Containers) {
 		}
 
 		for col, cell := range cells {
-			d.servicesTable.SetCell(row+1, col,
-				tview.NewTableCell(cell.text).
-					SetTextColor(cell.color).
-					SetAlign(tview.AlignLeft))
+			tableCell := tview.NewTableCell(cell.text).
+				SetTextColor(cell.color).
+				SetAlign(tview.AlignLeft)
+			if col == 2 { // Image column
+				tableCell.SetMaxWidth(25)
+			}
+			d.servicesTable.SetCell(row+1, col, tableCell)
 		}
 	}
 }
@@ -238,11 +244,23 @@ func formatBytes(value uint64) string {
 	return fmt.Sprintf("%.1f GB", bytes/(unit*unit*unit))
 }
 
-func (d *Dashboard) updateResourcesView(host metrics.HostInfo) {
+func (d *Dashboard) updateResourcesView(host metrics.HostInfo, containers []docker.Container) {
 	d.resourcesView.Clear()
-	fmt.Fprintf(d.resourcesView, "[yellow]CPU Cores:[-] %d\n\n", host.CPUCount)
+
+	var totalCPU float64
+	var totalMem uint64
+	for _, c := range containers {
+		totalCPU += c.CPUPercent
+		totalMem += c.MemUsage
+	}
+
+	cpuCoresUsed := totalCPU / 100.0
+
+	fmt.Fprintf(d.resourcesView, "[yellow]CPU Cores (Total):[-] %d\n", host.CPUCount)
+	fmt.Fprintf(d.resourcesView, "[yellow]CPU Usage (Active):[-] %.2f cores (%.1f%%)\n\n", cpuCoresUsed, totalCPU)
 	fmt.Fprintf(d.resourcesView, "[yellow]Memory Total:[-] %.2f GB\n", float64(host.MemTotal)/1024/1024/1024)
-	fmt.Fprintf(d.resourcesView, "[yellow]Memory Free:[-] %.2f MB\n\n", float64(host.MemFree)/1024/1024)
+	fmt.Fprintf(d.resourcesView, "[yellow]Memory Used (Containers):[-] %.2f MB\n", float64(totalMem)/1024/1024)
+	fmt.Fprintf(d.resourcesView, "[yellow]Memory Free (Available):[-] %.2f MB\n\n", float64(host.MemFree)/1024/1024)
 	fmt.Fprintf(d.resourcesView, "[gray]Updated: %s[-]", time.Now().Format("15:04:05"))
 }
 
@@ -298,28 +316,27 @@ func (d *Dashboard) Stop() {
 }
 
 func (d *Dashboard) handleInput(event *tcell.EventKey) *tcell.EventKey {
+	if d.filterMode {
+		return event
+	}
+
 	if event.Key() == tcell.KeyRune {
 		switch event.Rune() {
 		case 'q':
-			if !d.filterMode {
-				d.app.Stop()
-				return nil
-			}
-		default:
+			d.app.Stop()
+			return nil
+		case '/', 'f':
 			d.app.SetFocus(d.searchField)
 			d.filterMode = true
 			return nil
 		}
 	}
 	if event.Key() == tcell.KeyEscape {
-		if d.filterMode {
-			d.filterState.Clear()
-			d.searchField.SetText("")
-			d.app.SetFocus(d.logsView)
-			d.filterMode = false
-			return nil
-		}
 		d.filterState.Clear()
+		d.searchField.SetText("")
+		d.app.SetFocus(d.logsView)
+		d.filterMode = false
+		return nil
 	}
 	return event
 }

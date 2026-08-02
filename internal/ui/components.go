@@ -39,12 +39,21 @@ func NewStatusBar() *tview.TextView {
 
 // RenderSparkline creates a small text-based chart using unicode block characters
 func RenderSparkline(values []metrics.MetricPoint, maxPoints int) string {
-	if len(values) == 0 {
-		return ""
-	}
-
 	// Unicode block characters: 0:  , 1: ▂, 2: ▃, 3: ▄, 4: ▅, 5: ▆, 6: ▇, 7: █
 	blocks := []rune{' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+
+	// If empty, return a string of spaces of maxPoints length
+	if len(values) == 0 {
+		runes := make([]rune, maxPoints)
+		for i := 0; i < maxPoints; i++ {
+			runes[i] = ' '
+		}
+		return string(runes)
+	}
+
+	if len(values) > maxPoints {
+		values = values[len(values)-maxPoints:]
+	}
 
 	maxVal := 0.00001
 	for _, v := range values {
@@ -53,7 +62,15 @@ func RenderSparkline(values []metrics.MetricPoint, maxPoints int) string {
 		}
 	}
 
-	result := ""
+	// Build the runes slice
+	runes := make([]rune, 0, maxPoints)
+
+	// Add padding runes first if length < maxPoints
+	paddingCount := maxPoints - len(values)
+	for i := 0; i < paddingCount; i++ {
+		runes = append(runes, ' ')
+	}
+
 	for _, v := range values {
 		idx := int((v.Value / maxVal) * float64(len(blocks)-1))
 		if idx < 0 {
@@ -62,19 +79,10 @@ func RenderSparkline(values []metrics.MetricPoint, maxPoints int) string {
 		if idx >= len(blocks) {
 			idx = len(blocks) - 1
 		}
-		result += string(blocks[idx])
+		runes = append(runes, blocks[idx])
 	}
 
-	// Pad to ensure consistent width
-	if len(result) < maxPoints {
-		padding := ""
-		for i := 0; i < maxPoints-len(result); i++ {
-			padding += " "
-		}
-		result = padding + result
-	}
-
-	return result
+	return string(runes)
 }
 
 func FormatStatsSummary(values []metrics.MetricPoint, unit string) string {

@@ -101,14 +101,35 @@ func getContainerLogs(ctx context.Context, apiClient *client.Client, containerID
 	return ParseLogs(logs)
 }
 
-func getHostInfo() metrics.HostInfo {
+func getHostInfo(ctx context.Context, apiClient *client.Client, totalMemUsed uint64) metrics.HostInfo {
+	cpuCount := runtime.NumCPU()
+
+	// Fallback to process stats if daemon is not accessible
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
+	memTotal := memStats.Sys
+	memFree := memStats.Sys - memStats.Alloc
+
+	if apiClient != nil {
+		if info, err := apiClient.Info(ctx, client.InfoOptions{}); err == nil {
+			cpuCount = info.Info.NCPU
+			if info.Info.MemTotal >= 0 {
+				memTotal = uint64(info.Info.MemTotal)
+			} else {
+				memTotal = 0
+			}
+			if memTotal > totalMemUsed {
+				memFree = memTotal - totalMemUsed
+			} else {
+				memFree = 0
+			}
+		}
+	}
 
 	return metrics.HostInfo{
-		CPUCount: runtime.NumCPU(),
-		MemTotal: memStats.Sys,
-		MemFree:  memStats.Frees,
+		CPUCount: cpuCount,
+		MemTotal: memTotal,
+		MemFree:  memFree,
 	}
 }
 
@@ -155,8 +176,10 @@ func WatchContainers(ctx context.Context, apiClient *client.Client) (Containers,
 	}
 
 	var containers Containers
+	var totalMemUsed uint64
 	for _, c := range cntList.Items {
 		stat := getContainerStats(ctx, apiClient, c.ID)
+		totalMemUsed += stat.MemUsage
 		logs := getContainerLogs(ctx, apiClient, c.ID)
 		containers.C = append(containers.C, Container{
 			ID: c.ID, Image: c.Image, Status: c.Status, State: string(c.State),
@@ -182,7 +205,7 @@ func WatchContainers(ctx context.Context, apiClient *client.Client) (Containers,
 			Log:            logs,
 		})
 	}
-	containers.Host = getHostInfo()
+	containers.Host = getHostInfo(ctx, apiClient, totalMemUsed)
 
 	for _, c := range containers.C {
 		serviceName := c.Service

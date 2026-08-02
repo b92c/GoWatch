@@ -14,8 +14,7 @@ fi
 
 # Format code and check if formatted
 echo "Checking code formatting..."
-go fmt ./...
-if ! git diff --quiet; then
+if [ -n "$(gofmt -l .)" ]; then
     echo "Code is not properly formatted. Please run 'go fmt ./...' and commit the changes."
     exit 1
 fi
