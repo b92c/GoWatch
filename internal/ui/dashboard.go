@@ -53,7 +53,7 @@ func NewDashboard() *Dashboard {
 
 	helpBar := tview.NewTextView().
 		SetDynamicColors(true).
-		SetText("[yellow][[/]][white] Search | [yellow][[f]][white] Filter | [yellow][[l]][white] Log Level | [yellow][[d]][white] Docker View | [yellow][[a]][white] AWS View | [yellow][[Esc]][white] Clear | [yellow][[↑↓]][white] Scroll | [yellow][[q]][white] Quit")
+		SetText("[yellow]/[white] Search | [yellow]f[white] Filter | [yellow]l[white] Log Level | [yellow]d[white] Docker View | [yellow]a[white] AWS View | [yellow]Esc[white] Clear | [yellow]↑↓[white] Scroll | [yellow]q[white] Quit")
 	helpBar.SetBorder(false).SetBackgroundColor(tcell.ColorBlack)
 
 	searchField := tview.NewInputField().

@@ -5,6 +5,8 @@ Before executing any coding agent operation like "bug fix", "feature implementat
 
 NEVER mention AI co-authorship, AI participation, AI tools, or AI references in commits, PRs, code comments, or project documentation. This is a STRICT MANDATORY RULE.
 
+NEVER create git commits or execute git push without explicit order from the user. This is a STRICT MANDATORY RULE.
+
 ## AI Context References
 - Documentation index: `.context/docs/README.md`
 - Agent playbooks: `.context/agents/README.md`

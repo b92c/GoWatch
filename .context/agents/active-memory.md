@@ -39,6 +39,7 @@
 - O atalho `a` alterna visualização entre Docker Services e AWS Cloud Resources.
 - O carregamento da AWS é *lazy* e não bloqueia nem impede o uso offline de containers Docker.
 - REGRA ESTREITA: É estritamente proibido citar co-participação de IA, ferramentas de IA ou referências a IA na construção de código, mensagens de commit, pull requests ou documentação.
+- REGRA ESTREITA: NUNCA criar commits ou executar git push sem a ordem expressa e individual do usuário.
 
 ---
 
