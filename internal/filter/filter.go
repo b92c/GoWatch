@@ -82,6 +82,7 @@ func FilterContainers(containers docker.Containers, filter FilterState) docker.C
 
 	var filtered docker.Containers
 	filtered.Host = containers.Host
+	filtered.Traces = containers.Traces
 
 	for _, c := range containers.C {
 		if !matchesFilter(c, filter) {

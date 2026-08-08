@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/b92c/gowatch/internal/trace"
 	"github.com/b92c/gowatch/pkg/metrics"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
@@ -25,10 +26,16 @@ type FormattedLog struct {
 }
 
 var (
-	previousStats = make(map[string]container.StatsResponse)
-	historyStore  = make(map[string]metrics.ContainerStats)
-	statsMutex    sync.RWMutex
+	previousStats    = make(map[string]container.StatsResponse)
+	historyStore     = make(map[string]metrics.ContainerStats)
+	globalTraceStore = trace.NewTraceStore()
+	globalCorrelator = trace.NewCorrelator(globalTraceStore)
+	statsMutex       sync.RWMutex
 )
+
+func GetGlobalTraceStore() *trace.TraceStore {
+	return globalTraceStore
+}
 
 func getContainerStats(ctx context.Context, apiClient *client.Client, containerID string) metrics.ContainerStats {
 	stats, err := apiClient.ContainerStats(ctx, containerID, client.ContainerStatsOptions{Stream: false})
@@ -138,6 +145,7 @@ type Containers struct {
 	C        []Container
 	Logs     []ContainerLog
 	FlatLogs []FormattedLog
+	Traces   []trace.Trace
 	Host     metrics.HostInfo
 }
 
@@ -218,13 +226,16 @@ func WatchContainers(ctx context.Context, apiClient *client.Client) (Containers,
 			}
 		}
 		for _, line := range c.Log {
+			level := ParseLogLevel(line)
+			globalCorrelator.ProcessLogLine(serviceName, line)
 			containers.FlatLogs = append(containers.FlatLogs, FormattedLog{
 				Service: serviceName,
 				Line:    line,
-				Level:   ParseLogLevel(line),
+				Level:   level,
 			})
 		}
 	}
+	containers.Traces = globalTraceStore.GetTraces()
 
 	return containers, nil
 }

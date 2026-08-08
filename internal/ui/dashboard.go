@@ -7,6 +7,7 @@ import (
 
 	"github.com/b92c/gowatch/internal/docker"
 	"github.com/b92c/gowatch/internal/filter"
+	"github.com/b92c/gowatch/internal/trace"
 	"github.com/b92c/gowatch/pkg/metrics"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -129,7 +130,7 @@ func NewDashboard() *Dashboard {
 func (d *Dashboard) Update(containers docker.Containers) {
 	filtered := filter.FilterContainers(containers, d.filterState)
 	d.updateServicesTable(filtered)
-	d.updateResourcesView(filtered.Host, filtered.C)
+	d.updateResourcesView(filtered.Host, filtered.C, filtered.Traces)
 	d.updateLogsView(filtered)
 }
 
@@ -244,7 +245,7 @@ func formatBytes(value uint64) string {
 	return fmt.Sprintf("%.1f GB", bytes/(unit*unit*unit))
 }
 
-func (d *Dashboard) updateResourcesView(host metrics.HostInfo, containers []docker.Container) {
+func (d *Dashboard) updateResourcesView(host metrics.HostInfo, containers []docker.Container, traces []trace.Trace) {
 	d.resourcesView.Clear()
 
 	var totalCPU float64
@@ -256,12 +257,46 @@ func (d *Dashboard) updateResourcesView(host metrics.HostInfo, containers []dock
 
 	cpuCoresUsed := totalCPU / 100.0
 
-	fmt.Fprintf(d.resourcesView, "[yellow]CPU Cores (Total):[-] %d\n", host.CPUCount)
-	fmt.Fprintf(d.resourcesView, "[yellow]CPU Usage (Active):[-] %.2f cores (%.1f%%)\n\n", cpuCoresUsed, totalCPU)
-	fmt.Fprintf(d.resourcesView, "[yellow]Memory Total:[-] %.2f GB\n", float64(host.MemTotal)/1024/1024/1024)
-	fmt.Fprintf(d.resourcesView, "[yellow]Memory Used (Containers):[-] %.2f MB\n", float64(totalMem)/1024/1024)
-	fmt.Fprintf(d.resourcesView, "[yellow]Memory Free (Available):[-] %.2f MB\n\n", float64(host.MemFree)/1024/1024)
-	fmt.Fprintf(d.resourcesView, "[gray]Updated: %s[-]", time.Now().Format("15:04:05"))
+	fmt.Fprintf(d.resourcesView, "[yellow]CPU Cores (Total):[-] %d  |  [yellow]CPU Active:[-] %.2f cores (%.1f%%)\n", host.CPUCount, cpuCoresUsed, totalCPU)
+	fmt.Fprintf(d.resourcesView, "[yellow]Memory Total:[-] %.2f GB  |  [yellow]Used:[-] %.2f MB  |  [yellow]Free:[-] %.2f MB\n", float64(host.MemTotal)/1024/1024/1024, float64(totalMem)/1024/1024, float64(host.MemFree)/1024/1024)
+
+	errTraces := 0
+	for _, t := range traces {
+		if t.HasError {
+			errTraces++
+		}
+	}
+	traceStatus := "[green]OK[-]"
+	if errTraces > 0 {
+		traceStatus = fmt.Sprintf("[red]%d Error(s)[-]", errTraces)
+	}
+	fmt.Fprintf(d.resourcesView, "[yellow]Traces Active:[-] %d (%s)  |  [gray]Updated: %s[-]", len(traces), traceStatus, time.Now().Format("15:04:05"))
+
+	if len(traces) > 0 {
+		fmt.Fprintf(d.resourcesView, "\n[cyan]Recent Traces:[-]\n")
+		startIdx := len(traces) - 2
+		if startIdx < 0 {
+			startIdx = 0
+		}
+		for i := len(traces) - 1; i >= startIdx; i-- {
+			tr := traces[i]
+			rootOp := "unknown"
+			rootSvc := "unknown"
+			if tr.RootSpan != nil {
+				rootOp = tr.RootSpan.OperationName
+				rootSvc = tr.RootSpan.ServiceName
+			}
+			errFlag := ""
+			if tr.HasError {
+				errFlag = " [red][ERR][-]"
+			}
+			tID := tr.TraceID
+			if len(tID) > 12 {
+				tID = tID[:12]
+			}
+			fmt.Fprintf(d.resourcesView, "  • [yellow]%s[-] (%d spans, %v) [%s] %s%s", tID, len(tr.Spans), tr.Duration.Truncate(time.Millisecond), rootSvc, rootOp, errFlag)
+		}
+	}
 }
 
 var serviceColors = []string{
