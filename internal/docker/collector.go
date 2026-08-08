@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/b92c/gowatch/internal/aws"
 	"github.com/b92c/gowatch/internal/trace"
 	"github.com/b92c/gowatch/pkg/metrics"
 	"github.com/moby/moby/api/types/container"
@@ -30,11 +31,16 @@ var (
 	historyStore     = make(map[string]metrics.ContainerStats)
 	globalTraceStore = trace.NewTraceStore()
 	globalCorrelator = trace.NewCorrelator(globalTraceStore)
+	globalAWSManager = aws.NewAWSClientManager()
 	statsMutex       sync.RWMutex
 )
 
 func GetGlobalTraceStore() *trace.TraceStore {
 	return globalTraceStore
+}
+
+func GetGlobalAWSManager() *aws.AWSClientManager {
+	return globalAWSManager
 }
 
 func getContainerStats(ctx context.Context, apiClient *client.Client, containerID string) metrics.ContainerStats {
@@ -147,6 +153,7 @@ type Containers struct {
 	FlatLogs []FormattedLog
 	Traces   []trace.Trace
 	Host     metrics.HostInfo
+	AWS      aws.AWSState
 }
 
 type Container struct {
@@ -236,6 +243,7 @@ func WatchContainers(ctx context.Context, apiClient *client.Client) (Containers,
 		}
 	}
 	containers.Traces = globalTraceStore.GetTraces()
+	containers.AWS = globalAWSManager.GetState()
 
 	return containers, nil
 }

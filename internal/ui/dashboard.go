@@ -28,6 +28,7 @@ type Dashboard struct {
 	userScrolling bool
 	firstRender   bool
 	filterMode    bool
+	awsViewMode   bool
 }
 
 func NewDashboard() *Dashboard {
@@ -52,7 +53,7 @@ func NewDashboard() *Dashboard {
 
 	helpBar := tview.NewTextView().
 		SetDynamicColors(true).
-		SetText("[/][yellow] Search[white] | [f][yellow] Filter[white] | [l][yellow] Log Level[white] | [Esc][yellow] Clear[white] | [↑↓][yellow] Scroll[white] | [q][yellow] Quit[white]")
+		SetText("[/][yellow] Search[white] | [f][yellow] Filter[white] | [l][yellow] Log Level[white] | [a][yellow] AWS View[white] | [Esc][yellow] Clear[white] | [↑↓][yellow] Scroll[white] | [q][yellow] Quit[white]")
 	helpBar.SetBorder(false).SetBackgroundColor(tcell.ColorBlack)
 
 	searchField := tview.NewInputField().
@@ -155,6 +156,55 @@ func (d *Dashboard) SetupInputCapture() {
 
 func (d *Dashboard) updateServicesTable(containers docker.Containers) {
 	d.servicesTable.Clear()
+
+	if d.awsViewMode {
+		d.servicesTable.SetTitle(fmt.Sprintf(" AWS Cloud Resources (%s) ", containers.AWS.Region))
+		headers := []string{"Resource Name", "Type", "Region", "Status", "Metrics Summary", "Last Updated"}
+		for i, header := range headers {
+			cell := tview.NewTableCell(header).
+				SetTextColor(tcell.ColorYellow).
+				SetAlign(tview.AlignCenter).
+				SetSelectable(false)
+			d.servicesTable.SetCell(0, i, cell)
+		}
+
+		for row, r := range containers.AWS.Resources {
+			statusColor := tcell.ColorGreen
+			if r.Status != "Active" && r.Status != "CREATE_COMPLETE" && r.Status != "OK" {
+				statusColor = tcell.ColorYellow
+			}
+
+			metricsStr := ""
+			for k, v := range r.Metrics {
+				metricsStr += fmt.Sprintf("%s:%.1f ", k, v)
+			}
+			if metricsStr == "" {
+				metricsStr = "-"
+			}
+
+			cells := []struct {
+				text  string
+				color tcell.Color
+			}{
+				{r.Name, tcell.ColorWhite},
+				{r.Type, tcell.ColorLightBlue},
+				{r.Region, tcell.ColorGray},
+				{r.Status, statusColor},
+				{metricsStr, tcell.ColorWhite},
+				{r.LastUpdated.Format("15:04:05"), tcell.ColorGray},
+			}
+
+			for col, cell := range cells {
+				tableCell := tview.NewTableCell(cell.text).
+					SetTextColor(cell.color).
+					SetAlign(tview.AlignLeft)
+				d.servicesTable.SetCell(row+1, col, tableCell)
+			}
+		}
+		return
+	}
+
+	d.servicesTable.SetTitle(" Docker Services ")
 
 	// Headers
 	headers := []string{"Service", "State", "Image", "CPU %", "Memory", "Net Rx/Tx", "Net Pkts", "Disk R/W", "Disk Ops", "PIDs", "OOM", "Logs"}
@@ -395,6 +445,9 @@ func (d *Dashboard) handleInput(event *tcell.EventKey) *tcell.EventKey {
 			return nil
 		case 'l', 'L':
 			d.filterState.CycleMinLogLevel()
+			return nil
+		case 'a', 'A':
+			d.awsViewMode = !d.awsViewMode
 			return nil
 		}
 	}
