@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/b92c/gowatch/pkg/metrics"
 	"github.com/moby/moby/api/types/container"
 )
 
@@ -123,5 +124,27 @@ func TestParseStatsWithoutPreviousSampleKeepsCPUZero(t *testing.T) {
 	}
 	if parsed.OOMEvents != 1 {
 		t.Fatalf("expected OOMEvents=1, got %d", parsed.OOMEvents)
+	}
+}
+
+func TestParseLogLevel(t *testing.T) {
+	tests := []struct {
+		line     string
+		expected metrics.LogLevel
+	}{
+		{"2026-04-21 12:00:00 [ERROR] Database connection failed", metrics.LogLevelError},
+		{"{\"level\":\"error\",\"msg\":\"something broke\"}", metrics.LogLevelError},
+		{"level=warn msg=\"disk space low\"", metrics.LogLevelWarn},
+		{"[INFO] Server listening on port 8080", metrics.LogLevelInfo},
+		{"2026-04-21 [DEBUG] Variable x = 42", metrics.LogLevelDebug},
+		{"FATAL: Out of memory", metrics.LogLevelFatal},
+		{"Just a normal log output", metrics.LogLevelUnknown},
+	}
+
+	for _, tt := range tests {
+		got := ParseLogLevel(tt.line)
+		if got != tt.expected {
+			t.Errorf("ParseLogLevel(%q) = %v; want %v", tt.line, got, tt.expected)
+		}
 	}
 }

@@ -1,44 +1,45 @@
 # Active Memory - GoWatch Session
 
-**Data**: 2026-04-21  
-**Status**: P1.3 entregue - Histórico e Sparklines funcionando
+**Data**: 2026-08-07  
+**Status**: P1.4 entregue - Log Management Enhancements funcionando
 
 ---
 
 ## O que foi entregue
 
-### P1.3 - Historical Data & Trending
-- `pkg/metrics/types.go` centraliza `ContainerStats`, `MetricPoint` e `HostInfo`.
-- `internal/docker/collector.go` agora usa `historyStore` (map + mutex) para manter até 60 pontos de CPU/Memória.
-- `internal/ui/components.go` ganhou `RenderSparkline` usando blocos Unicode.
-- `internal/ui/dashboard.go` exibe mini-gráficos nas colunas de CPU e Memória.
-- Adicionadas funções `GetStatsSummary` e `FormatStatsSummary` para análises futuras.
-- Testes unitários implementados em `pkg/metrics/metrics_test.go`.
+### P1.4 - Log Management Enhancements
+- `pkg/metrics/types.go` ganhou o tipo `LogLevel` (`LogLevelTrace`, `LogLevelDebug`, `LogLevelInfo`, `LogLevelWarn`, `LogLevelError`, `LogLevelFatal`, `LogLevelUnknown`).
+- `internal/docker/parser.go` recebeu `ParseLogLevel(line string)` para detecção automática de severidade (JSON, Logfmt, colchetes/prefixos).
+- `internal/docker/collector.go` atualizou `FormattedLog` com o campo `Level`.
+- `internal/filter/filter.go` adicionou `MinLogLevel` ao `FilterState`, permitindo alternar ciclicamente com `CycleMinLogLevel()`.
+- `internal/ui/dashboard.go` ganhou suporte a badges coloridos por severidade (`[ERROR]`, `[WARN]`, `[INFO]`, `[DEBUG]`, `[FATAL]`), atualização dinâmica do título do painel de logs `Logs [WARN+]` e atalho de teclado `l` / `L` para alternar o nível de log.
+- Testes unitários adicionados em `internal/docker/parser_test.go` e `internal/filter/filter_test.go`.
 
-### P1.1 e P1.2 (Anteriores)
-- Filtros avançados, busca e métricas estendidas (Net, Disk, PIDs) consolidados.
-- Layout vertical da TUI estabilizado.
+### P1.3 (Anterior)
+- Histórico de métricas e sparklines unicode nas colunas de CPU/Memória.
 
 ---
 
 ## Validacoes executadas
-- `make build` OK
-- `make test` OK (16.6% de cobertura total, >90% nos parsers e metrics helpers)
-- Verificado que o histórico persiste entre os ciclos de atualização da UI.
+- `make build` OK (binário compilado sem erros)
+- `make test` OK (100% dos testes passando, cobertura expandida)
+- `make go-sec` OK (0 vulnerabilidades reportadas)
 
 ---
 
 ## Estado atual
-- O projeto agora possui uma base sólida para análise temporal.
-- Próximo passo recomendado: P1.4 Log Management Enhancements.
+- Gerenciamento e filtragem de logs na TUI concluídos com sucesso.
+- Próximo passo recomendado: P2.0 Distributed Tracing (`internal/trace`).
 
 ---
 
 ## Notas tecnicas importantes
-- O uso de `pkg/metrics` desacoplou a UI e o Collector de definições internas do Docker.
-- `MaxHistoryPoints = 60` balanceia bem visibilidade (~2min) e consumo de memória.
+- O atalho `l` alterna ciclicamente entre `ALL` → `INFO+` → `WARN+` → `ERROR` → `ALL`.
+- Logs sem severidade explícita são classificados como `LogLevelUnknown` e permanecem visíveis no filtro `ALL`.
+- REGRA ESTREITA: É estritamente proibido citar co-participação de IA, ferramentas de IA ou referências a IA na construção de código, mensagens de commit, pull requests ou documentação.
 
 ---
 
-**Encerrado em**: 2026-04-21  
-**Retomar por**: Iniciar P1.4 (Filtro de logs e parser de levels).
+**Encerrado em**: 2026-08-07  
+**Retomar por**: Iniciar P2.0 (Distributed Tracing).
+

@@ -21,6 +21,7 @@ type ContainerLog struct {
 type FormattedLog struct {
 	Service string
 	Line    string
+	Level   metrics.LogLevel
 }
 
 var (
@@ -220,6 +221,7 @@ func WatchContainers(ctx context.Context, apiClient *client.Client) (Containers,
 			containers.FlatLogs = append(containers.FlatLogs, FormattedLog{
 				Service: serviceName,
 				Line:    line,
+				Level:   ParseLogLevel(line),
 			})
 		}
 	}

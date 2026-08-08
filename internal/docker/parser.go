@@ -153,3 +153,31 @@ func ParseLogs(rawLogs io.ReadCloser) []string {
 
 	return logs
 }
+
+func ParseLogLevel(line string) metrics.LogLevel {
+	upper := strings.ToUpper(line)
+	if upper == "" {
+		return metrics.LogLevelUnknown
+	}
+
+	if strings.Contains(upper, "FATAL") || strings.Contains(upper, "\"LEVEL\":\"FATAL\"") || strings.Contains(upper, "LEVEL=FATAL") || strings.Contains(upper, "[CRITICAL]") || strings.Contains(upper, "CRITICAL:") {
+		return metrics.LogLevelFatal
+	}
+	if strings.Contains(upper, "ERROR") || strings.Contains(upper, "ERR ") || strings.Contains(upper, "\"LEVEL\":\"ERROR\"") || strings.Contains(upper, "\"SEVERITY\":\"ERROR\"") || strings.Contains(upper, "LEVEL=ERROR") || strings.Contains(upper, "[ERR]") {
+		return metrics.LogLevelError
+	}
+	if strings.Contains(upper, "WARN") || strings.Contains(upper, "WARNING") || strings.Contains(upper, "WRN ") || strings.Contains(upper, "\"LEVEL\":\"WARN\"") || strings.Contains(upper, "LEVEL=WARN") || strings.Contains(upper, "[WRN]") {
+		return metrics.LogLevelWarn
+	}
+	if strings.Contains(upper, "INFO") || strings.Contains(upper, "INF ") || strings.Contains(upper, "\"LEVEL\":\"INFO\"") || strings.Contains(upper, "LEVEL=INFO") || strings.Contains(upper, "[INF]") {
+		return metrics.LogLevelInfo
+	}
+	if strings.Contains(upper, "DEBUG") || strings.Contains(upper, "DBG ") || strings.Contains(upper, "\"LEVEL\":\"DEBUG\"") || strings.Contains(upper, "LEVEL=DEBUG") || strings.Contains(upper, "[DBG]") {
+		return metrics.LogLevelDebug
+	}
+	if strings.Contains(upper, "TRACE") || strings.Contains(upper, "TRC ") || strings.Contains(upper, "\"LEVEL\":\"TRACE\"") || strings.Contains(upper, "LEVEL=TRACE") {
+		return metrics.LogLevelTrace
+	}
+
+	return metrics.LogLevelUnknown
+}

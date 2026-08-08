@@ -4,30 +4,37 @@ import (
 	"strings"
 
 	"github.com/b92c/gowatch/internal/docker"
+	"github.com/b92c/gowatch/pkg/metrics"
 )
 
 type FilterState struct {
 	LabelFilters map[string]string
 	SearchText   string
 	StatusFilter []string
+	MinLogLevel  metrics.LogLevel
 	Active       bool
 }
 
 func NewFilterState() FilterState {
 	return FilterState{
 		LabelFilters: make(map[string]string),
+		MinLogLevel:  metrics.LogLevelUnknown,
 		Active:       false,
 	}
 }
 
+func (f *FilterState) updateActive() {
+	f.Active = f.SearchText != "" || len(f.StatusFilter) > 0 || len(f.LabelFilters) > 0 || f.MinLogLevel > metrics.LogLevelUnknown
+}
+
 func (f *FilterState) SetSearch(text string) {
 	f.SearchText = strings.TrimSpace(text)
-	f.Active = f.SearchText != "" || len(f.StatusFilter) > 0 || len(f.LabelFilters) > 0
+	f.updateActive()
 }
 
 func (f *FilterState) SetStatusFilter(status []string) {
 	f.StatusFilter = status
-	f.Active = f.SearchText != "" || len(f.StatusFilter) > 0 || len(f.LabelFilters) > 0
+	f.updateActive()
 }
 
 func (f *FilterState) SetLabelFilter(key, value string) {
@@ -36,13 +43,35 @@ func (f *FilterState) SetLabelFilter(key, value string) {
 	} else {
 		f.LabelFilters[key] = value
 	}
-	f.Active = f.SearchText != "" || len(f.StatusFilter) > 0 || len(f.LabelFilters) > 0
+	f.updateActive()
+}
+
+func (f *FilterState) SetMinLogLevel(level metrics.LogLevel) {
+	f.MinLogLevel = level
+	f.updateActive()
+}
+
+func (f *FilterState) CycleMinLogLevel() {
+	switch f.MinLogLevel {
+	case metrics.LogLevelUnknown:
+		f.MinLogLevel = metrics.LogLevelInfo
+	case metrics.LogLevelInfo:
+		f.MinLogLevel = metrics.LogLevelWarn
+	case metrics.LogLevelWarn:
+		f.MinLogLevel = metrics.LogLevelError
+	case metrics.LogLevelError:
+		f.MinLogLevel = metrics.LogLevelUnknown
+	default:
+		f.MinLogLevel = metrics.LogLevelUnknown
+	}
+	f.updateActive()
 }
 
 func (f *FilterState) Clear() {
 	f.SearchText = ""
 	f.StatusFilter = nil
 	f.LabelFilters = make(map[string]string)
+	f.MinLogLevel = metrics.LogLevelUnknown
 	f.Active = false
 }
 
@@ -71,9 +100,14 @@ func FilterContainers(containers docker.Containers, filter FilterState) docker.C
 		}
 
 		for _, line := range c.Log {
+			level := docker.ParseLogLevel(line)
+			if filter.MinLogLevel > metrics.LogLevelUnknown && level < filter.MinLogLevel {
+				continue
+			}
 			filtered.FlatLogs = append(filtered.FlatLogs, docker.FormattedLog{
 				Service: serviceName,
 				Line:    line,
+				Level:   level,
 			})
 		}
 	}

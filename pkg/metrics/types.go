@@ -8,6 +8,37 @@ import (
 // MaxHistoryPoints defines how many data points we keep in memory (~2 mins with 2s polling)
 const MaxHistoryPoints = 60
 
+type LogLevel int
+
+const (
+	LogLevelUnknown LogLevel = iota
+	LogLevelTrace
+	LogLevelDebug
+	LogLevelInfo
+	LogLevelWarn
+	LogLevelError
+	LogLevelFatal
+)
+
+func (l LogLevel) String() string {
+	switch l {
+	case LogLevelTrace:
+		return "TRACE"
+	case LogLevelDebug:
+		return "DEBUG"
+	case LogLevelInfo:
+		return "INFO"
+	case LogLevelWarn:
+		return "WARN"
+	case LogLevelError:
+		return "ERROR"
+	case LogLevelFatal:
+		return "FATAL"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 type MetricPoint struct {
 	Timestamp time.Time
 	Value     float64

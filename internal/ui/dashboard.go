@@ -51,7 +51,7 @@ func NewDashboard() *Dashboard {
 
 	helpBar := tview.NewTextView().
 		SetDynamicColors(true).
-		SetText("[/][yellow] Search[white] | [f][yellow] Filter[white] | [Esc][yellow] Clear[white] | [↑↓][yellow] Scroll[white] | [q][yellow] Quit[white]")
+		SetText("[/][yellow] Search[white] | [f][yellow] Filter[white] | [l][yellow] Log Level[white] | [Esc][yellow] Clear[white] | [↑↓][yellow] Scroll[white] | [q][yellow] Quit[white]")
 	helpBar.SetBorder(false).SetBackgroundColor(tcell.ColorBlack)
 
 	searchField := tview.NewInputField().
@@ -286,13 +286,42 @@ func (d *Dashboard) getServiceColor(serviceName string, containers docker.Contai
 	return "white"
 }
 
+func formatLogBadge(level metrics.LogLevel) string {
+	switch level {
+	case metrics.LogLevelFatal:
+		return "[white:red:b][FATAL][-]"
+	case metrics.LogLevelError:
+		return "[red::b][ERROR][-]"
+	case metrics.LogLevelWarn:
+		return "[yellow::b][WARN][-]"
+	case metrics.LogLevelInfo:
+		return "[green][INFO][-]"
+	case metrics.LogLevelDebug:
+		return "[darkgray][DEBUG][-]"
+	case metrics.LogLevelTrace:
+		return "[darkgray][TRACE][-]"
+	default:
+		return ""
+	}
+}
+
 func (d *Dashboard) updateLogsView(containers docker.Containers) {
 	row, col := d.logsView.GetScrollOffset()
+
+	title := " Logs "
+	if d.filterState.MinLogLevel > metrics.LogLevelUnknown {
+		title = fmt.Sprintf(" Logs [%s+] ", d.filterState.MinLogLevel.String())
+	}
+	d.logsView.SetTitle(title)
 
 	d.logsView.Clear()
 	for _, fl := range containers.FlatLogs {
 		color := d.getServiceColor(fl.Service, containers)
-		fmt.Fprintf(d.logsView, "[yellow]%s[-] [%s]%s[-]\n", fl.Service, color, tview.Escape(fl.Line))
+		badge := formatLogBadge(fl.Level)
+		if badge != "" {
+			badge = badge + " "
+		}
+		fmt.Fprintf(d.logsView, "[yellow]%s[-] %s[%s]%s[-]\n", fl.Service, badge, color, tview.Escape(fl.Line))
 	}
 
 	if d.firstRender {
@@ -328,6 +357,9 @@ func (d *Dashboard) handleInput(event *tcell.EventKey) *tcell.EventKey {
 		case '/', 'f':
 			d.app.SetFocus(d.searchField)
 			d.filterMode = true
+			return nil
+		case 'l', 'L':
+			d.filterState.CycleMinLogLevel()
 			return nil
 		}
 	}
