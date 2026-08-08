@@ -53,7 +53,7 @@ func NewDashboard() *Dashboard {
 
 	helpBar := tview.NewTextView().
 		SetDynamicColors(true).
-		SetText("[/][yellow] Search[white] | [f][yellow] Filter[white] | [l][yellow] Log Level[white] | [a][yellow] AWS View[white] | [Esc][yellow] Clear[white] | [↑↓][yellow] Scroll[white] | [q][yellow] Quit[white]")
+		SetText("[/][yellow] Search[white] | [f][yellow] Filter[white] | [l][yellow] Log Level[white] | [d][yellow] Docker View[white] | [a][yellow] AWS View[white] | [Esc][yellow] Clear[white] | [↑↓][yellow] Scroll[white] | [q][yellow] Quit[white]")
 	helpBar.SetBorder(false).SetBackgroundColor(tcell.ColorBlack)
 
 	searchField := tview.NewInputField().
@@ -446,8 +446,11 @@ func (d *Dashboard) handleInput(event *tcell.EventKey) *tcell.EventKey {
 		case 'l', 'L':
 			d.filterState.CycleMinLogLevel()
 			return nil
+		case 'd', 'D':
+			d.awsViewMode = false
+			return nil
 		case 'a', 'A':
-			d.awsViewMode = !d.awsViewMode
+			d.awsViewMode = true
 			return nil
 		}
 	}
