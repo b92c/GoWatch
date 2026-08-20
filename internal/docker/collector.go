@@ -152,8 +152,8 @@ type Containers struct {
 	Logs     []ContainerLog
 	FlatLogs []FormattedLog
 	Traces   []trace.Trace
-	Host     metrics.HostInfo
 	AWS      aws.AWSState
+	Host     metrics.HostInfo
 }
 
 type Container struct {

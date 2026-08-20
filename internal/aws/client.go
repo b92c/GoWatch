@@ -18,10 +18,10 @@ type AWSResource struct {
 }
 
 type AWSState struct {
-	Resources   []AWSResource `json:"resources"`
 	Region      string        `json:"region"`
 	EndpointURL string        `json:"endpoint_url,omitempty"`
 	LastError   string        `json:"last_error,omitempty"`
+	Resources   []AWSResource `json:"resources"`
 	Enabled     bool          `json:"enabled"`
 	Connected   bool          `json:"connected"`
 }

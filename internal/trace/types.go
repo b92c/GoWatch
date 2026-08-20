@@ -18,10 +18,10 @@ type Span struct {
 }
 
 type Trace struct {
-	RootSpan  *Span         `json:"root_span,omitempty"`
-	Spans     []*Span       `json:"spans"`
 	StartTime time.Time     `json:"start_time"`
+	RootSpan  *Span         `json:"root_span,omitempty"`
 	TraceID   string        `json:"trace_id"`
+	Spans     []*Span       `json:"spans"`
 	Duration  time.Duration `json:"duration"`
 	HasError  bool          `json:"has_error"`
 }

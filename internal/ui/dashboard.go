@@ -135,6 +135,10 @@ func (d *Dashboard) Update(containers docker.Containers) {
 }
 
 func (d *Dashboard) SetupInputCapture() {
+	d.searchField.SetChangedFunc(func(text string) {
+		d.filterState.SetSearch(text)
+	})
+
 	d.searchField.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
 			d.filterState.Clear()
@@ -427,7 +431,7 @@ func (d *Dashboard) Stop() {
 }
 
 func (d *Dashboard) handleInput(event *tcell.EventKey) *tcell.EventKey {
-	if d.app.GetFocus() == d.searchField {
+	if d.searchField.HasFocus() || d.app.GetFocus() == d.searchField {
 		return event
 	}
 
