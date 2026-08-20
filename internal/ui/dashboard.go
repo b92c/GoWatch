@@ -27,7 +27,6 @@ type Dashboard struct {
 	filterState   filter.FilterState
 	userScrolling bool
 	firstRender   bool
-	filterMode    bool
 	awsViewMode   bool
 }
 
@@ -136,18 +135,20 @@ func (d *Dashboard) Update(containers docker.Containers) {
 }
 
 func (d *Dashboard) SetupInputCapture() {
+	d.searchField.SetChangedFunc(func(text string) {
+		d.filterState.SetSearch(text)
+	})
+
 	d.searchField.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
 			d.filterState.Clear()
 			d.searchField.SetText("")
 			d.app.SetFocus(d.logsView)
-			d.filterMode = false
 			return nil
 		}
 		if event.Key() == tcell.KeyEnter {
 			d.filterState.SetSearch(d.searchField.GetText())
 			d.app.SetFocus(d.logsView)
-			d.filterMode = false
 			return nil
 		}
 		return event
@@ -430,7 +431,7 @@ func (d *Dashboard) Stop() {
 }
 
 func (d *Dashboard) handleInput(event *tcell.EventKey) *tcell.EventKey {
-	if d.filterMode {
+	if d.searchField.HasFocus() || d.app.GetFocus() == d.searchField {
 		return event
 	}
 
@@ -441,7 +442,6 @@ func (d *Dashboard) handleInput(event *tcell.EventKey) *tcell.EventKey {
 			return nil
 		case '/', 'f':
 			d.app.SetFocus(d.searchField)
-			d.filterMode = true
 			return nil
 		case 'l', 'L':
 			d.filterState.CycleMinLogLevel()
@@ -458,7 +458,6 @@ func (d *Dashboard) handleInput(event *tcell.EventKey) *tcell.EventKey {
 		d.filterState.Clear()
 		d.searchField.SetText("")
 		d.app.SetFocus(d.logsView)
-		d.filterMode = false
 		return nil
 	}
 	return event
