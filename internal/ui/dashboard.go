@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/b92c/gowatch/internal/alert"
 	"github.com/b92c/gowatch/internal/docker"
 	"github.com/b92c/gowatch/internal/filter"
 	"github.com/b92c/gowatch/internal/trace"
@@ -14,20 +15,22 @@ import (
 )
 
 type Dashboard struct {
-	daemonError   error
-	searchField   *tview.InputField
-	logsView      *tview.TextView
-	resourcesView *tview.TextView
-	helpBar       *tview.TextView
-	grid          *tview.Grid
-	app           *tview.Application
-	servicesTable *tview.Table
-	daemonErrView *tview.TextView
-	pages         *tview.Pages
-	filterState   filter.FilterState
-	userScrolling bool
-	firstRender   bool
-	awsViewMode   bool
+	daemonError        error
+	searchField        *tview.InputField
+	logsView           *tview.TextView
+	resourcesView      *tview.TextView
+	helpBar            *tview.TextView
+	grid               *tview.Grid
+	app                *tview.Application
+	servicesTable      *tview.Table
+	alertsModal        *tview.Table
+	daemonErrView      *tview.TextView
+	pages              *tview.Pages
+	filterState        filter.FilterState
+	userScrolling      bool
+	firstRender        bool
+	awsViewMode        bool
+	showingAlertsModal bool
 }
 
 func NewDashboard() *Dashboard {
@@ -52,8 +55,17 @@ func NewDashboard() *Dashboard {
 
 	helpBar := tview.NewTextView().
 		SetDynamicColors(true).
-		SetText("[yellow]/[white] Search | [yellow]f[white] Filter | [yellow]l[white] Log Level | [yellow]d[white] Docker View | [yellow]a[white] AWS View | [yellow]Esc[white] Clear | [yellow]↑↓[white] Scroll | [yellow]q[white] Quit")
+		SetText("[yellow]/[white] Search | [yellow]f[white] Filter | [yellow]l[white] Log Level | [yellow]w[white] Alerts | [yellow]d[white] Docker View | [yellow]a[white] AWS View | [yellow]Esc[white] Clear | [yellow]↑↓[white] Scroll | [yellow]q[white] Quit")
 	helpBar.SetBorder(false).SetBackgroundColor(tcell.ColorBlack)
+
+	alertsModal := tview.NewTable().
+		SetBorders(true).
+		SetSelectable(true, false).
+		SetFixed(1, 0)
+	alertsModal.SetBorder(true).
+		SetTitle(" 🚨 Active & Recent Alerts ([yellow]Esc[white]/[yellow]w[white] Close | [yellow]c[white] Clear Resolved) ").
+		SetTitleAlign(tview.AlignCenter).
+		SetBorderColor(tcell.ColorRed)
 
 	searchField := tview.NewInputField().
 		SetLabel("Search: ").
@@ -91,6 +103,7 @@ func NewDashboard() *Dashboard {
 
 	pages := tview.NewPages().
 		AddPage("dashboard", grid, true, true).
+		AddPage("alerts_modal", alertsModal, true, false).
 		AddPage("error", errorGrid, true, false)
 
 	app.SetRoot(pages, true)
@@ -100,6 +113,7 @@ func NewDashboard() *Dashboard {
 	dash := &Dashboard{
 		app:           app,
 		servicesTable: servicesTable,
+		alertsModal:   alertsModal,
 		logsView:      logsView,
 		resourcesView: resourcesView,
 		helpBar:       helpBar,
@@ -130,8 +144,9 @@ func NewDashboard() *Dashboard {
 func (d *Dashboard) Update(containers docker.Containers) {
 	filtered := filter.FilterContainers(containers, d.filterState)
 	d.updateServicesTable(filtered)
-	d.updateResourcesView(filtered.Host, filtered.C, filtered.Traces)
+	d.updateResourcesView(filtered.Host, filtered.C, filtered.Traces, containers.Alerts)
 	d.updateLogsView(filtered)
+	d.updateAlertsModal(containers.Alerts)
 }
 
 func (d *Dashboard) SetupInputCapture() {
@@ -296,7 +311,7 @@ func formatBytes(value uint64) string {
 	return fmt.Sprintf("%.1f GB", bytes/(unit*unit*unit))
 }
 
-func (d *Dashboard) updateResourcesView(host metrics.HostInfo, containers []docker.Container, traces []trace.Trace) {
+func (d *Dashboard) updateResourcesView(host metrics.HostInfo, containers []docker.Container, traces []trace.Trace, alerts []alert.Alert) {
 	d.resourcesView.Clear()
 
 	var totalCPU float64
@@ -308,7 +323,24 @@ func (d *Dashboard) updateResourcesView(host metrics.HostInfo, containers []dock
 
 	cpuCoresUsed := totalCPU / 100.0
 
-	fmt.Fprintf(d.resourcesView, "[yellow]CPU Cores (Total):[-] %d  |  [yellow]CPU Active:[-] %.2f cores (%.1f%%)\n", host.CPUCount, cpuCoresUsed, totalCPU)
+	critCount := 0
+	warnCount := 0
+	for _, a := range alerts {
+		if a.Status == alert.StatusFiring || a.Status == alert.StatusAcknowledged {
+			if a.Severity == alert.SeverityCritical {
+				critCount++
+			} else if a.Severity == alert.SeverityWarning {
+				warnCount++
+			}
+		}
+	}
+
+	alertSummary := "[green]OK[-]"
+	if critCount > 0 || warnCount > 0 {
+		alertSummary = fmt.Sprintf("[red]%d CRIT[-], [yellow]%d WARN[-] ([yellow]w[-] for details)", critCount, warnCount)
+	}
+
+	fmt.Fprintf(d.resourcesView, "[yellow]CPU Cores (Total):[-] %d  |  [yellow]CPU Active:[-] %.2f cores (%.1f%%)  |  [yellow]Alerts:[-] %s\n", host.CPUCount, cpuCoresUsed, totalCPU, alertSummary)
 	fmt.Fprintf(d.resourcesView, "[yellow]Memory Total:[-] %.2f GB  |  [yellow]Used:[-] %.2f MB  |  [yellow]Free:[-] %.2f MB\n", float64(host.MemTotal)/1024/1024/1024, float64(totalMem)/1024/1024, float64(host.MemFree)/1024/1024)
 
 	errTraces := 0
@@ -346,6 +378,63 @@ func (d *Dashboard) updateResourcesView(host metrics.HostInfo, containers []dock
 				tID = tID[:12]
 			}
 			fmt.Fprintf(d.resourcesView, "  • [yellow]%s[-] (%d spans, %v) [%s] %s%s", tID, len(tr.Spans), tr.Duration.Truncate(time.Millisecond), rootSvc, rootOp, errFlag)
+		}
+	}
+}
+
+func (d *Dashboard) updateAlertsModal(alerts []alert.Alert) {
+	d.alertsModal.Clear()
+
+	headers := []string{"Status", "Severity", "Service", "Message", "Value", "Fired At"}
+	for i, header := range headers {
+		cell := tview.NewTableCell(header).
+			SetTextColor(tcell.ColorYellow).
+			SetAlign(tview.AlignCenter).
+			SetSelectable(false)
+		d.alertsModal.SetCell(0, i, cell)
+	}
+
+	if len(alerts) == 0 {
+		cell := tview.NewTableCell("No active or recent alerts").
+			SetTextColor(tcell.ColorGreen).
+			SetAlign(tview.AlignCenter)
+		d.alertsModal.SetCell(1, 0, cell)
+		return
+	}
+
+	for row, a := range alerts {
+		statusColor := tcell.ColorRed
+		if a.Status == alert.StatusAcknowledged {
+			statusColor = tcell.ColorYellow
+		} else if a.Status == alert.StatusResolved {
+			statusColor = tcell.ColorGreen
+		}
+
+		severityColor := tcell.ColorYellow
+		if a.Severity == alert.SeverityCritical {
+			severityColor = tcell.ColorRed
+		}
+
+		firedStr := a.FiredAt.Format("15:04:05")
+		valStr := fmt.Sprintf("%.1f", a.Value)
+
+		cells := []struct {
+			text  string
+			color tcell.Color
+		}{
+			{string(a.Status), statusColor},
+			{string(a.Severity), severityColor},
+			{a.ServiceName, tcell.ColorWhite},
+			{a.Message, tcell.ColorWhite},
+			{valStr, tcell.ColorWhite},
+			{firedStr, tcell.ColorGray},
+		}
+
+		for col, cell := range cells {
+			tableCell := tview.NewTableCell(cell.text).
+				SetTextColor(cell.color).
+				SetAlign(tview.AlignLeft)
+			d.alertsModal.SetCell(row+1, col, tableCell)
 		}
 	}
 }
@@ -452,9 +541,28 @@ func (d *Dashboard) handleInput(event *tcell.EventKey) *tcell.EventKey {
 		case 'a', 'A':
 			d.awsViewMode = true
 			return nil
+		case 'w', 'W':
+			d.showingAlertsModal = !d.showingAlertsModal
+			if d.showingAlertsModal {
+				d.pages.SwitchToPage("alerts_modal")
+				d.app.SetFocus(d.alertsModal)
+			} else {
+				d.pages.SwitchToPage("dashboard")
+				d.app.SetFocus(d.logsView)
+			}
+			return nil
+		case 'c', 'C':
+			docker.GetGlobalAlertEngine().ClearResolvedAlerts()
+			return nil
 		}
 	}
 	if event.Key() == tcell.KeyEscape {
+		if d.showingAlertsModal {
+			d.showingAlertsModal = false
+			d.pages.SwitchToPage("dashboard")
+			d.app.SetFocus(d.logsView)
+			return nil
+		}
 		d.filterState.Clear()
 		d.searchField.SetText("")
 		d.app.SetFocus(d.logsView)

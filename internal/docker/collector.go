@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/b92c/gowatch/internal/alert"
 	"github.com/b92c/gowatch/internal/aws"
 	"github.com/b92c/gowatch/internal/trace"
 	"github.com/b92c/gowatch/pkg/metrics"
@@ -27,12 +28,13 @@ type FormattedLog struct {
 }
 
 var (
-	previousStats    = make(map[string]container.StatsResponse)
-	historyStore     = make(map[string]metrics.ContainerStats)
-	globalTraceStore = trace.NewTraceStore()
-	globalCorrelator = trace.NewCorrelator(globalTraceStore)
-	globalAWSManager = aws.NewAWSClientManager()
-	statsMutex       sync.RWMutex
+	previousStats     = make(map[string]container.StatsResponse)
+	historyStore      = make(map[string]metrics.ContainerStats)
+	globalTraceStore  = trace.NewTraceStore()
+	globalCorrelator  = trace.NewCorrelator(globalTraceStore)
+	globalAWSManager  = aws.NewAWSClientManager()
+	globalAlertEngine = alert.NewAlertEngine(nil)
+	statsMutex        sync.RWMutex
 )
 
 func GetGlobalTraceStore() *trace.TraceStore {
@@ -41,6 +43,10 @@ func GetGlobalTraceStore() *trace.TraceStore {
 
 func GetGlobalAWSManager() *aws.AWSClientManager {
 	return globalAWSManager
+}
+
+func GetGlobalAlertEngine() *alert.AlertEngine {
+	return globalAlertEngine
 }
 
 func getContainerStats(ctx context.Context, apiClient *client.Client, containerID string) metrics.ContainerStats {
@@ -152,6 +158,7 @@ type Containers struct {
 	Logs     []ContainerLog
 	FlatLogs []FormattedLog
 	Traces   []trace.Trace
+	Alerts   []alert.Alert
 	AWS      aws.AWSState
 	Host     metrics.HostInfo
 }
@@ -193,6 +200,8 @@ func WatchContainers(ctx context.Context, apiClient *client.Client) (Containers,
 
 	var containers Containers
 	var totalMemUsed uint64
+	var evalData []alert.ContainerEvaluatorData
+
 	for _, c := range cntList.Items {
 		stat := getContainerStats(ctx, apiClient, c.ID)
 		totalMemUsed += stat.MemUsage
@@ -220,6 +229,15 @@ func WatchContainers(ctx context.Context, apiClient *client.Client) (Containers,
 			MemHistory:     stat.MemHistory,
 			Log:            logs,
 		})
+
+		evalData = append(evalData, alert.ContainerEvaluatorData{
+			ID:         c.ID,
+			Service:    c.Labels["com.docker.compose.service"],
+			State:      string(c.State),
+			CPUPercent: stat.CPUPercent,
+			MemUsage:   stat.MemUsage,
+			OOMEvents:  stat.OOMEvents,
+		})
 	}
 	containers.Host = getHostInfo(ctx, apiClient, totalMemUsed)
 
@@ -244,6 +262,7 @@ func WatchContainers(ctx context.Context, apiClient *client.Client) (Containers,
 	}
 	containers.Traces = globalTraceStore.GetTraces()
 	containers.AWS = globalAWSManager.GetState()
+	containers.Alerts = globalAlertEngine.Evaluate(evalData, containers.Host)
 
 	return containers, nil
 }
