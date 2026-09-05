@@ -1,4 +1,3 @@
-// Package docker comment :)
 package docker
 
 import (
@@ -72,7 +71,6 @@ func getContainerStats(ctx context.Context, apiClient *client.Client, containerI
 
 	stat := ParseStats(statsJSON)
 
-	// Update history
 	h, exists := historyStore[containerID]
 	if !exists {
 		h = metrics.ContainerStats{}
@@ -95,7 +93,6 @@ func getContainerStats(ctx context.Context, apiClient *client.Client, containerI
 	h.CPUHistory = append(h.CPUHistory, metrics.MetricPoint{Timestamp: now, Value: stat.CPUPercent})
 	h.MemHistory = append(h.MemHistory, metrics.MetricPoint{Timestamp: now, Value: float64(stat.MemUsage)})
 
-	// Limit history
 	if len(h.CPUHistory) > metrics.MaxHistoryPoints {
 		h.CPUHistory = h.CPUHistory[1:]
 	}
@@ -124,7 +121,6 @@ func getContainerLogs(ctx context.Context, apiClient *client.Client, containerID
 func getHostInfo(ctx context.Context, apiClient *client.Client, totalMemUsed uint64) metrics.HostInfo {
 	cpuCount := runtime.NumCPU()
 
-	// Fallback to process stats if daemon is not accessible
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 	memTotal := memStats.Sys

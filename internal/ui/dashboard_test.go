@@ -27,14 +27,12 @@ func TestDashboardHandleInput(t *testing.T) {
 	t.Run("logsView focused: shortcut keys should be intercepted", func(t *testing.T) {
 		dash.app.SetFocus(dash.logsView)
 
-		// Test 'l' (cycle log level)
 		lEvent := tcell.NewEventKey(tcell.KeyRune, 'l', tcell.ModNone)
 		resL := dash.handleInput(lEvent)
 		if resL != nil {
 			t.Errorf("expected 'l' event to be intercepted (nil), got %v", resL)
 		}
 
-		// Test 'a' (switch to AWS view)
 		aEvent := tcell.NewEventKey(tcell.KeyRune, 'a', tcell.ModNone)
 		resA := dash.handleInput(aEvent)
 		if resA != nil {
@@ -44,7 +42,6 @@ func TestDashboardHandleInput(t *testing.T) {
 			t.Errorf("expected awsViewMode to be true after 'a' key press")
 		}
 
-		// Test '/' (focus search field)
 		slashEvent := tcell.NewEventKey(tcell.KeyRune, '/', tcell.ModNone)
 		resSlash := dash.handleInput(slashEvent)
 		if resSlash != nil {
@@ -81,7 +78,6 @@ func TestDashboardHandleInput(t *testing.T) {
 		dash.SetupInputCapture()
 		dash.app.SetFocus(dash.logsView)
 
-		// 1. User presses '/'
 		slashEv := tcell.NewEventKey(tcell.KeyRune, '/', tcell.ModNone)
 		ev := dash.handleInput(slashEv)
 		if ev != nil {
@@ -92,7 +88,6 @@ func TestDashboardHandleInput(t *testing.T) {
 			t.Fatalf("expected searchField to be focused after '/', got %v", dash.app.GetFocus())
 		}
 
-		// 2. User types "laravel"
 		word := "laravel"
 		for _, r := range word {
 			event := tcell.NewEventKey(tcell.KeyRune, r, tcell.ModNone)

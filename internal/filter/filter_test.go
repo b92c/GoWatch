@@ -21,17 +21,17 @@ func TestFilterMinLogLevel(t *testing.T) {
 		t.Errorf("expected MinLogLevel = LogLevelWarn, got %v", fs.MinLogLevel)
 	}
 
-	fs.CycleMinLogLevel() // Warn -> Error
+	fs.CycleMinLogLevel()
 	if fs.MinLogLevel != metrics.LogLevelError {
 		t.Errorf("expected MinLogLevel = LogLevelError after cycle, got %v", fs.MinLogLevel)
 	}
 
-	fs.CycleMinLogLevel() // Error -> Unknown
+	fs.CycleMinLogLevel()
 	if fs.MinLogLevel != metrics.LogLevelUnknown {
 		t.Errorf("expected MinLogLevel = LogLevelUnknown after cycle, got %v", fs.MinLogLevel)
 	}
 
-	fs.CycleMinLogLevel() // Unknown -> Info
+	fs.CycleMinLogLevel()
 	if fs.MinLogLevel != metrics.LogLevelInfo {
 		t.Errorf("expected MinLogLevel = LogLevelInfo after cycle, got %v", fs.MinLogLevel)
 	}

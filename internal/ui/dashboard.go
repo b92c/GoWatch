@@ -1,4 +1,3 @@
-// Package ui comment :)
 package ui
 
 import (
@@ -222,20 +221,18 @@ func (d *Dashboard) updateServicesTable(containers docker.Containers) {
 
 	d.servicesTable.SetTitle(" Docker Services ")
 
-	// Headers
 	headers := []string{"Service", "State", "Image", "CPU %", "Memory", "Net Rx/Tx", "Net Pkts", "Disk R/W", "Disk Ops", "PIDs", "OOM", "Logs"}
 	for i, header := range headers {
 		cell := tview.NewTableCell(header).
 			SetTextColor(tcell.ColorYellow).
 			SetAlign(tview.AlignCenter).
 			SetSelectable(false)
-		if i == 2 { // Image column
+		if i == 2 {
 			cell.SetMaxWidth(25)
 		}
 		d.servicesTable.SetCell(0, i, cell)
 	}
 
-	// Data rows
 	for row, c := range containers.C {
 		serviceName := c.Service
 		if serviceName == "" {
@@ -288,7 +285,7 @@ func (d *Dashboard) updateServicesTable(containers docker.Containers) {
 			tableCell := tview.NewTableCell(cell.text).
 				SetTextColor(cell.color).
 				SetAlign(tview.AlignLeft)
-			if col == 2 { // Image column
+			if col == 2 {
 				tableCell.SetMaxWidth(25)
 			}
 			d.servicesTable.SetCell(row+1, col, tableCell)

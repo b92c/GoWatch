@@ -20,8 +20,8 @@ type ContainerEvaluatorData struct {
 }
 
 type AlertEngine struct {
-	activeAlerts map[string]*Alert // Key: containerID + ":" + ruleID
-	hitCounters  map[string]int    // Key: containerID + ":" + ruleID
+	activeAlerts map[string]*Alert
+	hitCounters  map[string]int
 	rules        []AlertRule
 	mu           sync.RWMutex
 }
@@ -52,7 +52,6 @@ func (ae *AlertEngine) Evaluate(containers []ContainerEvaluatorData, host metric
 		activeContainerIDs[c.ID] = true
 	}
 
-	// 1. Clean up stale alerts for containers that no longer exist (Gap 4 mitigation)
 	for key, alert := range ae.activeAlerts {
 		if !activeContainerIDs[alert.ContainerID] {
 			if alert.Status == StatusFiring || alert.Status == StatusAcknowledged {
@@ -61,12 +60,10 @@ func (ae *AlertEngine) Evaluate(containers []ContainerEvaluatorData, host metric
 				alert.ResolvedAt = &now
 				alert.Message = "Container terminated (stale alert auto-resolved)"
 			}
-			// Delete resolved stale alerts immediately from hitCounters
 			delete(ae.hitCounters, key)
 		}
 	}
 
-	// 2. Evaluate rules for each container
 	now := time.Now()
 	for _, c := range containers {
 		serviceName := c.Service
@@ -101,13 +98,11 @@ func (ae *AlertEngine) Evaluate(containers []ContainerEvaluatorData, host metric
 							FiredAt:     now,
 						}
 					} else if existing.Status == StatusFiring {
-						// Update live value and message
 						existing.Value = val
 						existing.Message = fmt.Sprintf("%s: %.1f (threshold: %.1f)", rule.Description, val, rule.Threshold)
 					}
 				}
 			} else {
-				// Check hysteresis before resolving (Gap 1 & Gap 5 mitigation)
 				existing, exists := ae.activeAlerts[key]
 				if exists && (existing.Status == StatusFiring || existing.Status == StatusAcknowledged) {
 					isBelowHysteresis := ae.isBelowHysteresis(c, host, rule, val)
@@ -129,7 +124,6 @@ func (ae *AlertEngine) Evaluate(containers []ContainerEvaluatorData, host metric
 func (ae *AlertEngine) evaluateRule(c ContainerEvaluatorData, host metrics.HostInfo, rule AlertRule) (float64, bool) {
 	switch rule.Metric {
 	case "cpu_percent":
-		// Gap 5: Calculate normalized CPU percentage per CPU core
 		cpuCount := float64(host.CPUCount)
 		if cpuCount <= 0 {
 			cpuCount = 1
@@ -138,7 +132,6 @@ func (ae *AlertEngine) evaluateRule(c ContainerEvaluatorData, host metrics.HostI
 		return normalizedCPU, normalizedCPU >= rule.Threshold
 
 	case "mem_percent":
-		// Gap 3: Safe memory limit handling (fallback to host total memory if limit == 0)
 		memLimit := host.MemTotal
 		if memLimit == 0 {
 			return 0, false

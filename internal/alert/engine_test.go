@@ -12,30 +12,27 @@ func TestAlertEngineConsecutiveHits(t *testing.T) {
 
 	host := metrics.HostInfo{
 		CPUCount: 1,
-		MemTotal: 1024 * 1024 * 1024, // 1GB
+		MemTotal: 1024 * 1024 * 1024,
 	}
 
 	c := ContainerEvaluatorData{
 		ID:         "container-1",
 		Service:    "web",
 		State:      "running",
-		CPUPercent: 90.0, // High CPU (threshold is 85%)
+		CPUPercent: 90.0,
 		MemUsage:   100 * 1024 * 1024,
 	}
 
-	// Amostra 1: Hit 1 -> Não deve disparar ainda (ConsecutiveHits = 3)
 	alerts := engine.Evaluate([]ContainerEvaluatorData{c}, host)
 	if len(alerts) != 0 {
 		t.Fatalf("expected 0 active alerts on hit 1, got %d", len(alerts))
 	}
 
-	// Amostra 2: Hit 2 -> Não deve disparar ainda
 	alerts = engine.Evaluate([]ContainerEvaluatorData{c}, host)
 	if len(alerts) != 0 {
 		t.Fatalf("expected 0 active alerts on hit 2, got %d", len(alerts))
 	}
 
-	// Amostra 3: Hit 3 -> DEVE disparar (StatusFIRING)
 	alerts = engine.Evaluate([]ContainerEvaluatorData{c}, host)
 	if len(alerts) != 1 {
 		t.Fatalf("expected 1 active alert on hit 3, got %d", len(alerts))
@@ -59,7 +56,6 @@ func TestAlertEngineHysteresis(t *testing.T) {
 		CPUPercent: 90.0,
 	}
 
-	// Disparar o alerta com 3 hits
 	for i := 0; i < 3; i++ {
 		engine.Evaluate([]ContainerEvaluatorData{c}, host)
 	}
@@ -69,7 +65,6 @@ func TestAlertEngineHysteresis(t *testing.T) {
 		t.Fatalf("alert should be FIRING")
 	}
 
-	// Queda para 80% (abaixo do Threshold 85%, mas acima da Histerese 75%)
 	c.CPUPercent = 80.0
 	engine.Evaluate([]ContainerEvaluatorData{c}, host)
 
@@ -78,7 +73,6 @@ func TestAlertEngineHysteresis(t *testing.T) {
 		t.Fatalf("alert should STILL be FIRING due to hysteresis (val=80%%, hyst=75%%)")
 	}
 
-	// Queda para 70% (abaixo da Histerese 75%) -> DEVE resolver
 	c.CPUPercent = 70.0
 	engine.Evaluate([]ContainerEvaluatorData{c}, host)
 
@@ -91,7 +85,6 @@ func TestAlertEngineHysteresis(t *testing.T) {
 func TestAlertEngineSafeMemoryLimit(t *testing.T) {
 	engine := NewAlertEngine(nil)
 
-	// Host memTotal = 0 (simula erro de coleta ou limite não definido sem crash/div zero)
 	host := metrics.HostInfo{CPUCount: 1, MemTotal: 0}
 	c := ContainerEvaluatorData{
 		ID:       "c-zero-mem",
@@ -113,7 +106,6 @@ func TestAlertEngineStaleContainerCleanup(t *testing.T) {
 		OOMEvents: 1,
 	}
 
-	// 1 hit para OOM_KILLED (ConsecutiveHits = 1)
 	engine.Evaluate([]ContainerEvaluatorData{c}, host)
 
 	alerts := engine.GetActiveAlertsSnapshot()
@@ -121,7 +113,6 @@ func TestAlertEngineStaleContainerCleanup(t *testing.T) {
 		t.Fatalf("expected OOM alert firing")
 	}
 
-	// Na próxima avaliação, o container sumiu da lista
 	engine.Evaluate([]ContainerEvaluatorData{}, host)
 
 	alerts = engine.GetActiveAlertsSnapshot()

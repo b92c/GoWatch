@@ -52,7 +52,6 @@ func (ts *TraceStore) AddSpan(span *Span) {
 
 	now := time.Now()
 
-	// Clean expired traces
 	var freshOrder []string
 	for _, id := range ts.order {
 		t, ok := ts.traces[id]

@@ -21,12 +21,12 @@ const (
 
 type AlertRule struct {
 	ID                  string
-	Metric              string // "cpu_percent", "mem_percent", "oom_events", "container_state"
+	Metric              string
 	Severity            Severity
 	Description         string
-	Threshold           float64 // Limite para disparo
-	HysteresisThreshold float64 // Limite inferior para resolução (evita flapping)
-	ConsecutiveHits     int     // Quantas amostras seguidas acima do Threshold são necessárias
+	Threshold           float64
+	HysteresisThreshold float64
+	ConsecutiveHits     int
 }
 
 type Alert struct {
